@@ -1,0 +1,20 @@
+# Copy to workbench.local.yaml (git-ignored). Deep-merged over workbench.yaml;
+# lists replace lists.
+
+# Use clones you already have instead of cloning into sources/. With
+# `checkouts: auto`, every worktree of that clone is a checkout, named by its branch.
+# sources:
+#   cl:
+#     path: ~/Documents/GitHub/cell-ontology
+#     checkouts: auto
+#   uberon:
+#     path: ~/Documents/GitHub/uberon
+#     checkouts: [master, my-uberon-branch]   # or restrict to these worktrees
+
+# tools:
+#   robot: /usr/local/bin/robot      # use this ROBOT instead of PATH / .tools
+#   robot_heap: 24G
+
+# serve:
+#   port: 8091
+#   kbs: ["cl-*__uberon-*"]

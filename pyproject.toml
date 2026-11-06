@@ -1,0 +1,23 @@
+[project]
+name = "uberon-cl-aba-workbench"
+version = "0.1.0"
+description = "Reasoner-backed co-development of CL, Uberon and Allen brain atlas ontologies (MBA, DHBA, HOMBA): branch checkouts, merged KBs, local Owlery"
+requires-python = ">=3.11"
+dependencies = [
+  "pyyaml>=6",
+  # oq: evidence-returning OLS4 / Ubergraph lookups (published ontologies)
+  "onto-query @ git+https://github.com/Cellular-Semantics/atlas-skills@pkg-onto-query--v0.4.0#subdirectory=packages/onto-query",
+]
+
+[project.scripts]
+wb = "workbench.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/workbench"]

@@ -1,0 +1,220 @@
+# Workbench configuration: which ontology branches are checked out, how they are
+# synced, which knowledgebases (KBs) are built from them, and which are served by
+# Owlery. Commit this file: it is the shared set-up for everyone using your copy of
+# the template. Put machine-specific overrides (e.g. paths to existing checkouts,
+# heap sizes) in workbench.local.yaml, which is git-ignored and deep-merged on top.
+#
+# After editing: `uv run wb sync` (checkouts), `uv run wb build` (KBs),
+# `uv run wb serve` (Owlery). `uv run wb kbs` shows what this file expands to.
+
+tools:
+  robot_version: 1.9.10      # downloaded to .tools/ by `wb setup` unless `robot` is on PATH
+  owlery_version: 0.17.2
+  robot_heap: 16G            # ROBOT_JAVA_ARGS -Xmx for builds
+
+sources:
+  # Each source is a git repo. Every entry under `checkouts` becomes a git worktree
+  # at sources/<source>/<checkout-name>/, sharing one partial (blob-less) clone.
+  #   - master                  branch (tracks origin/master)
+  #   - branch: my-feature      same, long form
+  #   - pr: 3788                GitHub pull request head (fetched as pr-3788)
+  #   - {branch: x, name: y}    custom checkout name (used in KB names)
+  # To use checkouts you already have, set `path:` (here or in workbench.local.yaml)
+  # to an existing clone; `checkouts: auto` then picks up every worktree of it.
+  #
+  # sync (what `wb sync` / `wb watch --sync` does to each checkout):
+  #   ff     fetch, then fast-forward clean checkouts to their upstream (default)
+  #   fetch  fetch only
+  #   none   leave alone (default for `path:` sources: you manage them)
+  cl:
+    repo: https://github.com/obophenotype/cell-ontology.git
+    edit: src/ontology/cl-edit.owl
+    catalog: src/ontology/catalog-v001.xml
+    checkouts:
+      - master
+    sync: ff
+
+  uberon:
+    repo: https://github.com/obophenotype/uberon.git
+    edit: src/ontology/uberon-edit.obo
+    catalog: src/ontology/catalog-v001.xml
+    checkouts:
+      - master
+    sync: ff
+
+  # Mouse Brain Atlas Ontology: Allen CCF structures (MBA:…) defined as
+  # 'Uberon term' and part_of 'Mus musculus'. MBA terms are generated from
+  # src/templates/*.tsv into components/all_templates.owl by the ODK Makefile, so
+  # after a template edit, regenerate the component in the checkout before building.
+  # The component also carries labels for every CL/Uberon term it references, from the
+  # release it was built against: `components` is filtered too, so the KBs take those
+  # from the CL and Uberon checkouts instead.
+  mba:
+    repo: https://github.com/brain-bican/mouse_brain_atlas_ontology.git
+    edit: src/ontology/mbao-edit.owl
+    catalog: src/ontology/catalog-v001.xml
+    filter_dirs: [imports, components]
+    checkouts:
+      - main
+    sync: ff
+
+  # Developing Human Brain Atlas Ontology: DHBA structures (DHBA:…) generated from the
+  # Allen structure graph (src/ontology/sources/16.ofn) plus the Uberon->DHBA bridge.
+  # Unlike MBA, the committed components/all_templates.owl is an empty placeholder:
+  # the content only exists in the built dhbao-base.owl at the repo root, so that is
+  # what the KBs read. After changing the graph or bridge, rebuild dhbao-base.owl in
+  # the checkout (ODK `make prepare_release`) before building a KB. CL imports the
+  # published dhbao-base.owl from main.
+  dhba:
+    repo: https://github.com/brain-bican/developing_human_brain_atlas_ontology.git
+    edit: dhbao-base.owl
+    checkouts:
+      - main
+    sync: ff
+
+  # Harmonized Ontology of Mammalian Brain Anatomy (HOMBA): Allen HOMBA_v1 structure
+  # graph plus the Uberon->HOMBA bridge (downloaded from Uberon's add-homba-bridge
+  # branch), compiled into the committed components/all_templates.owl.
+  homba:
+    repo: https://github.com/Cellular-Semantics/harmonized_ontology_of_mammalian_brain_anatomy_ontology.git
+    edit: src/ontology/homba-edit.owl
+    catalog: src/ontology/catalog-v001.xml
+    filter_dirs: [imports, components]
+    checkouts:
+      - main
+    sync: ff
+
+# CURIE prefixes for non-OBO IRIs, used by `wb q` / `wb compare` (MBA:549 etc.) and in
+# drop_import_subjects. OBO prefixes (CL, UBERON, …) need no entry.
+prefixes:
+  MBA: https://purl.brain-bican.org/ontology/mbao/MBA_
+  ABA: https://purl.brain-bican.org/ontology/mbao/ABA_
+  DHBA: https://purl.brain-bican.org/ontology/dhbao/DHBA_
+  HOMBA: https://purl.brain-bican.org/ontology/HOMBA_
+
+kbs:
+  # A KB is a merge of parts. Each part is the import closure of a source's edit file
+  # (or a local `file:` / remote `url:`). `{source}` placeholders in the name expand
+  # over that source's checkouts: by default all of them; `matrix` restricts this.
+  #
+  # drop_import_subjects: in that part's import files (catalog entries under
+  # `filter_dirs`, default [imports]), drop every axiom whose subject has one of these
+  # ID prefixes. Use it where another part is the authority for those terms, so the
+  # KB reasons over the edit-branch version, not a stale import slice.
+
+  - name: cl-{cl}
+    parts:
+      - source: cl
+
+  - name: uberon-{uberon}
+    parts:
+      - source: uberon
+
+  # The co-development KB: CL with its Uberon slice replaced by the full uberon-edit
+  # closure, and Uberon with its CL slice replaced by cl-edit.
+  - name: cl-{cl}__uberon-{uberon}
+    parts:
+      - source: cl
+        drop_import_subjects: [UBERON]
+      - source: uberon
+        drop_import_subjects: [CL]
+    # matrix:            # default: every cl checkout x every uberon checkout
+    #   cl: "*"
+    #   uberon: [master]
+    heap: 10G
+
+  # MBA has no Uberon of its own to reason with (its Uberon import is an empty
+  # placeholder in the repo), so it is only built merged with an Uberon checkout.
+  - name: mba-{mba}__uberon-{uberon}
+    parts:
+      - source: mba
+        drop_import_subjects: [UBERON, CL]
+      - source: uberon
+    heap: 8G
+
+  # All three: MBA atlas structures, the Uberon classes they are defined from, and the
+  # CL classes whose soma location etc. refers to those Uberon classes.
+  - name: mba-{mba}__cl-{cl}__uberon-{uberon}
+    parts:
+      - source: mba
+        drop_import_subjects: [UBERON, CL]
+      - source: cl
+        drop_import_subjects: [UBERON, MBA]   # CL imports MBA classes from an MBAO release
+      - source: uberon
+        drop_import_subjects: [CL]
+    heap: 12G
+
+  # What CL's release sees: the published mbao-base.owl (which CL mirrors for its MBA
+  # import) instead of an MBA checkout. Compare with the KB above to tell a problem in
+  # MBA's release from one on an MBA branch.
+  - name: mbao-release__cl-{cl}__uberon-{uberon}
+    parts:
+      - url: https://raw.githubusercontent.com/brain-bican/mouse_brain_atlas_ontology/main/mbao-base.owl
+      - source: cl
+        drop_import_subjects: [UBERON, MBA]
+      - source: uberon
+        drop_import_subjects: [CL]
+    heap: 12G
+
+  # DHBA structures with the Uberon/CL classes they reference, and what CL's release
+  # sees (published dhbao-base.owl, which CL mirrors for its DHBA import).
+  - name: dhba-{dhba}__cl-{cl}__uberon-{uberon}
+    parts:
+      - source: dhba
+        drop_import_subjects: [UBERON, CL]
+      - source: cl
+        drop_import_subjects: [UBERON, DHBA]
+      - source: uberon
+        drop_import_subjects: [CL]
+    heap: 12G
+
+  - name: dhbao-release__cl-{cl}__uberon-{uberon}
+    parts:
+      - url: https://raw.githubusercontent.com/brain-bican/developing_human_brain_atlas_ontology/main/dhbao-base.owl
+      - source: cl
+        drop_import_subjects: [UBERON, DHBA]
+      - source: uberon
+        drop_import_subjects: [CL]
+    heap: 12G
+
+  - name: homba-{homba}__cl-{cl}__uberon-{uberon}
+    parts:
+      - source: homba
+        drop_import_subjects: [UBERON, CL]
+      - source: cl
+        drop_import_subjects: [UBERON]
+      - source: uberon
+        drop_import_subjects: [CL]
+    heap: 12G
+
+  # Experimental axioms that live in neither repo yet (see patches/README.md):
+  # - name: cl-{cl}__uberon-{uberon}__patched
+  #   parts:
+  #     - {source: cl, drop_import_subjects: [UBERON]}
+  #     - {source: uberon, drop_import_subjects: [CL]}
+  #     - file: patches/cerebellum-like.ofn
+  #   matrix: {cl: [master], uberon: [master]}
+
+  # Any other ODK-style repo works as a source, as MBA does above, e.g. another
+  # application ontology whose terms reference CL and Uberon:
+  # sources:
+  #   wmbo:
+  #     repo: https://github.com/Cellular-Semantics/whole_mouse_brain_ontology.git
+  #     edit: src/ontology/wmbo-edit.owl
+  #     catalog: src/ontology/catalog-v001.xml
+  #     checkouts: [main]
+  # kbs:
+  #   - name: wmbo-{wmbo}__cl-{cl}__uberon-{uberon}
+  #     parts:
+  #       - {source: wmbo, drop_import_subjects: [CL, UBERON]}
+  #       - {source: cl, drop_import_subjects: [UBERON]}
+  #       - {source: uberon, drop_import_subjects: [CL]}
+
+serve:
+  port: 8090                 # proxy: http://localhost:8090/kbs/<kb>/...
+  backend_port_base: 9100    # one Owlery process per KB from here up
+  reasoner: elk              # elk | whelk | structural | hermit | jfact
+  heap: 6G                   # per KB unless the KB sets `heap`
+  # which KBs `wb serve` starts: "*" or a list of names/globs. Each KB is its own JVM,
+  # so serving all five master KBs needs ~40 GB; `wb serve KB` starts any other.
+  kbs: ["mba-*__cl-*__uberon-*"]
