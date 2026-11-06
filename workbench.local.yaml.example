@@ -1,5 +1,11 @@
-# Copy to workbench.local.yaml (git-ignored). Deep-merged over workbench.yaml;
-# lists replace lists.
+# Copy to workbench.local.yaml (git-ignored). Deep-merged over workbench.yaml.
+# sources.<src>.checkouts and kbs add to the shared lists (an entry with the same name
+# overrides; `enabled: false` turns a shared KB off); other lists replace.
+
+# Your working branches and PRs, on top of the shared checkouts:
+# sources:
+#   cl:
+#     checkouts: [my-new-neuron-types, {pr: 3788}]
 
 # Use clones you already have instead of cloning into sources/. With
 # `checkouts: auto`, every worktree of that clone is a checkout, named by its branch.

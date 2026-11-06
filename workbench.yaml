@@ -2,7 +2,8 @@
 # synced, which knowledgebases (KBs) are built from them, and which are served by
 # Owlery. Commit this file: it is the shared set-up for everyone using your copy of
 # the template. Put machine-specific overrides (e.g. paths to existing checkouts,
-# heap sizes) in workbench.local.yaml, which is git-ignored and deep-merged on top.
+# heap sizes) and your own branch checkouts / KBs in workbench.local.yaml, which is
+# git-ignored and merged on top (its checkouts and kbs add to the lists here).
 #
 # After editing: `uv run wb sync` (checkouts), `uv run wb build` (KBs),
 # `uv run wb serve` (Owlery). `uv run wb kbs` shows what this file expands to.

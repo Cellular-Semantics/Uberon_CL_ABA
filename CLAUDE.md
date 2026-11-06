@@ -10,6 +10,11 @@ working in the repo.
 - `workbench.yaml` (+ `workbench.local.yaml`) declares sources, checkouts, KBs and
   serving. Run `uv run wb kbs` and `uv run wb status` to see the current state; don't
   guess paths.
+- Add branch and PR checkouts, and KBs specific to them, to `workbench.local.yaml`
+  (git-ignored), not `workbench.yaml`, which holds only the shared baseline (main
+  branches, standard KBs). Local `checkouts:` and `kbs:` add to the shared lists
+  (same name = override; `enabled: false` disables a shared KB); other lists replace.
+  Templated KBs expand over local checkouts automatically, so a new KB is rarely needed.
 - Ontology edits happen in the checkouts that `wb status` lists (under
   `sources/<src>/<name>/`, or wherever `path:` points). Edit only the edit files
   (`src/ontology/cl-edit.owl`, `src/ontology/uberon-edit.obo`) and follow each repo's

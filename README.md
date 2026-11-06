@@ -54,6 +54,40 @@ one copy of the template shares the same set-up. `workbench.local.yaml` (git-ign
 see `workbench.local.yaml.example`) is deep-merged on top for machine-specific
 settings.
 
+Keep `workbench.yaml` to the shared baseline (each source's main branch and the
+standard KBs). Track your own branch and PR checkouts, and any KBs specific to them,
+in `workbench.local.yaml`, so that working branches don't end up in everyone's set-up.
+The local file extends the shared one:
+
+- `sources.<src>.checkouts` and `kbs` are **added to** the shared lists. A local
+  checkout or KB with the same name as a shared one is merged over it (e.g. to change a
+  KB's `heap` or `matrix`), and `enabled: false` turns a shared KB off on your machine.
+- Any other list (`serve.kbs`, a KB's `parts`, `filter_dirs`, …) and a string such as
+  `checkouts: auto` replaces the shared value.
+
+Templated KBs (`cl-{cl}__uberon-{uberon}` etc.) expand over every checkout, so adding a
+branch checkout locally is usually enough to get KBs for it:
+
+```yaml
+# workbench.local.yaml
+sources:
+  mba:
+    checkouts:
+      - fix-12-unmap-brainstem   # + mba-fix-12-unmap-brainstem__cl-master__uberon-master etc.
+  cl:
+    checkouts:
+      - pr: 3788
+kbs:
+  - name: cl-{cl}__uberon-{uberon}__patched   # a KB only for your branch
+    parts:
+      - {source: cl, drop_import_subjects: [UBERON]}
+      - {source: uberon, drop_import_subjects: [CL]}
+      - file: patches/cerebellum-like.ofn
+    matrix: {cl: [pr-3788], uberon: [master]}
+  - name: homba-{homba}__cl-{cl}__uberon-{uberon}
+    enabled: false                            # don't build this one here
+```
+
 ### Sources and checkouts
 
 ```yaml
@@ -64,8 +98,8 @@ sources:
     catalog: src/ontology/catalog-v001.xml
     checkouts:
       - master
-      - my-new-neuron-types          # a branch
-      - pr: 3788                     # someone's PR, to reason over it with your Uberon branch
+      - my-new-neuron-types          # a branch      } put working branches and PRs
+      - pr: 3788                     # someone's PR  } in workbench.local.yaml
     sync: ff
 ```
 

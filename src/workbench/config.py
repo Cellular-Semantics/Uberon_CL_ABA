@@ -24,13 +24,48 @@ def find_root(start: Path | None = None) -> Path:
     raise SystemExit("workbench.yaml not found in this directory or any parent")
 
 
-def deep_merge(base, over):
+def deep_merge(base, over, path=()):
+    """Merge workbench.local.yaml (`over`) onto workbench.yaml (`base`).
+
+    Dicts merge recursively. Two lists extend rather than replace, so local branches
+    and KBs add to the shared set-up: `sources.<src>.checkouts` (keyed by checkout
+    name) and `kbs` (keyed by `name`; a same-name entry is merged over the shared one).
+    Every other list, and a non-list on either side (`checkouts: auto`), replaces.
+    """
     if isinstance(base, dict) and isinstance(over, dict):
         out = dict(base)
         for k, v in over.items():
-            out[k] = deep_merge(base.get(k), v) if k in base else v
+            out[k] = deep_merge(base.get(k), v, path + (k,)) if k in base else v
         return out
+    if isinstance(base, list) and isinstance(over, list):
+        if path == ("kbs",):
+            return merge_keyed(base, over, lambda r: r.get("name"), path)
+        if len(path) == 3 and path[0] == "sources" and path[2] == "checkouts":
+            return merge_keyed(base, over, checkout_key, path)
     return copy.deepcopy(over)
+
+
+def merge_keyed(base: list, over: list, key, path) -> list:
+    out = copy.deepcopy(base)
+    index = {key(x): i for i, x in enumerate(out)}
+    for x in over:
+        k = key(x)
+        if k in index:
+            i = index[k]
+            both_dicts = isinstance(out[i], dict) and isinstance(x, dict)
+            out[i] = deep_merge(out[i], x, path + ("*",)) if both_dicts else copy.deepcopy(x)
+        else:
+            index[k] = len(out)
+            out.append(copy.deepcopy(x))
+    return out
+
+
+def checkout_key(spec) -> str:
+    """The checkout name a `checkouts:` entry produces (see Source.resolve_checkouts)."""
+    if isinstance(spec, dict):
+        pr = spec.get("pr")
+        return safe_name(str(spec.get("name") or (f"pr-{pr}" if pr is not None else spec.get("branch"))))
+    return safe_name(str(spec))
 
 
 def safe_name(s: str) -> str:
@@ -207,6 +242,8 @@ def load(root: Path | None = None) -> Config:
     serve = raw.get("serve", {})
     kbs = []
     for recipe in raw.get("kbs") or []:
+        if recipe.get("enabled", True) is False:
+            continue
         kbs.extend(expand_kb(recipe, sources, root, serve.get("heap", "6G"),
                              raw.get("prefixes") or {}))
     names = [k.name for k in kbs]
